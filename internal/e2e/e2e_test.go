@@ -2019,6 +2019,15 @@ window.dragURIList = (target, type, x, y, path) => {
 	if canceled := eval(`drag(document.body, "drop", 50, 200)`); canceled != false {
 		t.Error("an in-page drop was canceled by the bridge")
 	}
+	if canceled := eval(`dragURIList(document.body, "dragenter", 50, 200, "/tmp/in-page.txt")`); canceled != false {
+		t.Error("an in-page uri-list dragenter was accepted by the bridge")
+	}
+	if canceled := eval(`dragURIList(document.body, "dragover", 50, 200, "/tmp/in-page.txt")`); canceled != false {
+		t.Error("an in-page uri-list dragover was accepted by the bridge")
+	}
+	if canceled := eval(`dragURIList(document.body, "drop", 50, 200, "/tmp/in-page.txt")`); canceled != false {
+		t.Error("an in-page uri-list drop was canceled by the bridge")
+	}
 	expectDrop(false, "in-page drag")
 	eval(`item.dispatchEvent(new DragEvent("dragend", { bubbles: true }))`)
 
@@ -2030,6 +2039,9 @@ window.dragURIList = (target, type, x, y, path) => {
 		t.Fatal(err)
 	}
 	linux := runtime.GOOS == "linux"
+	if canceled := eval(`dragURIList(document.body, "dragenter", 50, 200, ` + string(pathJS) + `)`); canceled != linux {
+		t.Errorf("uri-list dragenter canceled %v, want %v", canceled, linux)
+	}
 	if canceled := eval(`dragURIList(document.body, "dragover", 50, 200, ` + string(pathJS) + `)`); canceled != linux {
 		t.Errorf("uri-list dragover canceled %v, want %v", canceled, linux)
 	}

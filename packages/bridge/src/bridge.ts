@@ -1,7 +1,7 @@
 // Entry point of the script MyGo injects at document start into every page.
 // The Go side wraps the bundle in a function that defines __MYGO_CONFIG__.
 import { contextTarget } from "./context-menu";
-import { externalFiles } from "./file-drag";
+import { acceptFileDrag, externalFiles } from "./file-drag";
 import { find, stopFind } from "./find";
 import { type FitLimits, fitContent } from "./fit-content";
 import { createRuntime } from "./runtime";
@@ -146,11 +146,37 @@ let rootStyle: HTMLStyleElement | null = null;
   );
   // Where the page does not handle dragged files, accept them rather than
   // letting the engine replace the page with the dropped file.
-  const accept = (e: DragEvent) => {
-    if (external(e) && !e.defaultPrevented) e.preventDefault();
+  const accept = (e: DragEvent, phase: "dragenter" | "dragover" | "drop") => {
+    const data = e.dataTransfer;
+    if (!external(e) || !data) return;
+    acceptFileDrag(
+      {
+        types: Array.from(data.types),
+        get dropEffect() {
+          return data.dropEffect;
+        },
+        set dropEffect(value) {
+          data.dropEffect = value;
+        },
+        defaultPrevented: e.defaultPrevented,
+        preventDefault: () => e.preventDefault(),
+      },
+      __MYGO_CONFIG__.platform,
+      phase,
+    );
   };
-  w.addEventListener("dragover", accept);
-  w.addEventListener("drop", accept);
+  w.addEventListener("dragenter", (e: DragEvent) => {
+    const types = Array.from(e.dataTransfer?.types ?? []);
+    if (
+      __MYGO_CONFIG__.platform === "linux" &&
+      types.includes("text/uri-list") &&
+      !types.includes("Files")
+    ) {
+      accept(e, "dragenter");
+    }
+  });
+  w.addEventListener("dragover", (e: DragEvent) => accept(e, "dragover"));
+  w.addEventListener("drop", (e: DragEvent) => accept(e, "drop"));
 
   // An Escape the page does not handle (preventDefault) closes a flyout,
   // as a menu or popover. Handlers run in any order: look once all did.
