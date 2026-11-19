@@ -2001,6 +2001,11 @@ window.drag = (target, type, x, y) => {
   dt.items.add(new File(["hi"], "dropped.txt"));
   return !target.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true, clientX: x, clientY: y }));
 };
+window.dragURIList = (target, type, x, y, path) => {
+  const dt = new DataTransfer();
+  dt.setData("text/uri-list", "file://" + path);
+  return !target.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true, clientX: x, clientY: y }));
+};
 </script></body>`, "")
 	waitFor(t, w, "window.drag")
 	expectDrop := func(want bool, what string) *mygo.FileDropEvent {
@@ -2068,6 +2073,28 @@ window.drag = (target, type, x, y) => {
 	}
 	expectDrop(false, "in-page drag")
 	eval(`item.dispatchEvent(new DragEvent("dragend", { bubbles: true }))`)
+
+	// WebKitGTK's FileList can be empty for a native drop that carries a URI
+	// list, while GTK still has the dropped paths.
+	setDroppedFiles(w, []string{path})
+	pathJS, err := json.Marshal(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	linux := runtime.GOOS == "linux"
+	if canceled := eval(`dragURIList(document.body, "dragover", 50, 200, ` + string(pathJS) + `)`); canceled != linux {
+		t.Errorf("uri-list dragover canceled %v, want %v", canceled, linux)
+	}
+	if canceled := eval(`dragURIList(document.body, "drop", 50, 200, ` + string(pathJS) + `)`); canceled != linux {
+		t.Errorf("uri-list drop canceled %v, want %v", canceled, linux)
+	}
+	if linux {
+		if e := expectDrop(true, "uri-list drop"); len(e.Paths) != 1 || e.Paths[0] != path {
+			t.Errorf("uri-list drop: %+v", e)
+		}
+	} else {
+		expectDrop(false, "uri-list drop")
+	}
 	setDroppedFiles(w, nil)
 }
 
