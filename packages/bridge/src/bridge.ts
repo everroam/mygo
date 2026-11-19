@@ -1,6 +1,7 @@
 // Entry point of the script MyGo injects at document start into every page.
 // The Go side wraps the bundle in a function that defines __MYGO_CONFIG__.
 import { contextTarget } from "./context-menu";
+import { externalFiles } from "./file-drag";
 import { find, stopFind } from "./find";
 import { type FitLimits, fitContent } from "./fit-content";
 import { createRuntime } from "./runtime";
@@ -116,22 +117,23 @@ let rootStyle: HTMLStyleElement | null = null;
   };
 
   // Files dropped from outside: Go gets their paths next to the page's own
-  // drag and drop, which is left as it is. The platform records the paths
-  // before the page sees the drop, or WebView2 hands them over with the
-  // File objects posted along with the message.
+  // drag and drop, which is left as it is. WebKitGTK can offer only a URI
+  // list; GTK recorded the native paths before the page sees the drop.
   let inPage = false; // a drag started in this page: none of our business
   w.addEventListener("dragstart", () => (inPage = true), true);
   w.addEventListener("dragend", () => (inPage = false), true);
   const external = (e: DragEvent) =>
-    !inPage && !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
+    !inPage && !!e.dataTransfer && externalFiles(Array.from(e.dataTransfer.types), __MYGO_CONFIG__.platform);
   w.addEventListener(
     "drop",
     (e: DragEvent) => {
+      if (inPage) return;
       const files = e.dataTransfer?.files;
-      if (inPage || !files?.length) return;
+      if (!files?.length && !external(e)) return;
       const m = __MYGO_CONFIG__.secret + JSON.stringify({ t: "drop", x: Math.round(e.clientX), y: Math.round(e.clientY) });
       try {
-        raw.postWithFiles ? raw.postWithFiles(m, files) : raw.post(m);
+        if (files?.length) raw.postWithFiles ? raw.postWithFiles(m, files) : raw.post(m);
+        else raw.post(m);
       } catch {
         try {
           raw.post(m); // e.g. File objects not backed by a file
